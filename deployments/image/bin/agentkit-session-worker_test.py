@@ -16,7 +16,16 @@ class WorkerFlowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest = root / "tool-manifest.json"
-            manifest.write_text(json.dumps({"metadata": {"allowedTools": ["workspace.read"], "skillRefs": [{"name": "demo"}]}}), encoding="utf-8")
+            manifest.write_text(json.dumps({"metadata": {
+                "allowedTools": ["workspace.read"],
+                "skillRefs": [{"name": "demo"}],
+                "agentDefinition": {
+                    "entryPoint": "root_agent.yaml",
+                    "files": {
+                        "root_agent.yaml": "name: test_agent\nmodel: agent-defined-model\ndescription: Test agent\ninstruction: |\n  Follow the agent-defined instruction.\nskills:\n  - demo\n"
+                    },
+                },
+            }}), encoding="utf-8")
             skill = root / ".aisphere" / "skills" / "demo" / "SKILL.md"
             skill.parent.mkdir(parents=True)
             skill.write_text("Use workspace.read for inspected files.", encoding="utf-8")
@@ -45,6 +54,8 @@ class WorkerFlowTest(unittest.TestCase):
                 self.assertEqual(calls[0]["tool"], "workspace.read")
                 self.assertEqual(len(model_requests), 2)
                 self.assertIn("Use workspace.read", model_requests[0]["messages"][0]["content"])
+                self.assertIn("Follow the agent-defined instruction.", model_requests[0]["messages"][0]["content"])
+                self.assertEqual(model_requests[0]["model"], "agent-defined-model")
                 self.assertEqual(model_requests[0]["tools"][0]["function"]["name"], "workspace.read")
             finally:
                 tool_server.shutdown()

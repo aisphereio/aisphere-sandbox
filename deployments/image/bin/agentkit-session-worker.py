@@ -49,6 +49,102 @@ def selected_tool_names() -> set[str] | None:
     return {str(name) for name in metadata.get("allowedTools") or [] if str(name).strip()}
 
 
+def filesystem_name(raw: str) -> str:
+    out = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in raw.strip()).strip(".")
+    return out or "agent"
+
+
+def agent_definition_from_manifest() -> dict[str, Any]:
+    value = manifest_metadata().get("agentDefinition")
+    return value if isinstance(value, dict) else {}
+
+
+def agent_definition_dir() -> Path:
+    return WORKSPACE / ".aisphere" / "agents" / filesystem_name(AGENT_ID or "agent")
+
+
+def read_agent_definition_file() -> tuple[str, str]:
+    definition = agent_definition_from_manifest()
+    entry_point = str(definition.get("entryPoint") or "root_agent.yaml")
+    files = definition.get("files") if isinstance(definition.get("files"), dict) else {}
+    manifest_text = files.get(entry_point)
+    if isinstance(manifest_text, str):
+        return manifest_text, f"manifest:{entry_point}"
+
+    root = agent_definition_dir()
+    candidates = [root / entry_point, root / "root_agent.yaml"]
+    candidates.extend(sorted((WORKSPACE / ".aisphere" / "agents").glob("*/root_agent.yaml")))
+    for path in candidates:
+        try:
+            if path.exists() and path.is_file():
+                return path.read_text(encoding="utf-8", errors="replace")[:256000], str(path)
+        except OSError:
+            continue
+    return "", ""
+
+
+def strip_yaml_scalar(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    return value
+
+
+def parse_agent_yaml(text: str) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        raw = lines[i]
+        if not raw.strip() or raw.lstrip().startswith("#") or raw.startswith((" ", "\t")):
+            i += 1
+            continue
+        if ":" not in raw:
+            i += 1
+            continue
+        key, value = raw.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if key in {"name", "description", "model", "instruction", "global_instruction"}:
+            if value in {"|", "|-", "|+", ">", ">-", ">+"}:
+                block: list[str] = []
+                i += 1
+                while i < len(lines) and (not lines[i].strip() or lines[i].startswith((" ", "\t"))):
+                    block.append(lines[i][2:] if lines[i].startswith("  ") else lines[i].lstrip())
+                    i += 1
+                result[key] = "\n".join(block).strip()
+                continue
+            result[key] = strip_yaml_scalar(value)
+        elif key == "skills":
+            skills: list[str] = []
+            i += 1
+            while i < len(lines) and (not lines[i].strip() or lines[i].startswith((" ", "\t"))):
+                stripped = lines[i].strip()
+                if stripped.startswith("- "):
+                    skills.append(strip_yaml_scalar(stripped[2:]))
+                i += 1
+            result[key] = [item for item in skills if item]
+            continue
+        i += 1
+    return result
+
+
+def agent_config() -> dict[str, Any]:
+    text, source = read_agent_definition_file()
+    cfg = parse_agent_yaml(text) if text else {}
+    cfg["source"] = source
+    definition = agent_definition_from_manifest()
+    model = definition.get("model") if isinstance(definition.get("model"), dict) else {}
+    if not cfg.get("model") and isinstance(model, dict):
+        cfg["model"] = model.get("profile") or model.get("model") or model.get("profileCode") or model.get("logicalName") or ""
+    return cfg
+
+
+def active_model_profile() -> str:
+    cfg = agent_config()
+    return str(cfg.get("model") or MODEL_PROFILE)
+
+
 def http_json(url: str, *, method: str = "GET", payload: dict[str, Any] | None = None, timeout: int = 60) -> dict[str, Any]:
     data = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, method=method)
@@ -84,6 +180,8 @@ def model_tools() -> list[dict[str, Any]]:
 def skill_context() -> str:
     metadata = manifest_metadata()
     selected = {str(item.get("name")) for item in metadata.get("skillRefs") or [] if isinstance(item, dict)}
+    cfg = agent_config()
+    selected.update(str(item) for item in cfg.get("skills") or [] if str(item).strip())
     roots = [WORKSPACE / ".aisphere" / "skills", Path("/opt/aisphere/skills")]
     chunks: list[str] = []
     seen: set[str] = set()
@@ -207,10 +305,16 @@ def call_model_gateway(run_id: str, text: str) -> tuple[str, dict[str, Any]]:
 
 
 def call_model_gateway_with_tools(run_id: str, text: str) -> tuple[str, dict[str, Any]]:
+    cfg = agent_config()
     system = (
         "You are running inside an AI Sphere sandbox. "
         f"The workspace is {WORKSPACE}; keep file operations inside /workspace."
     )
+    if cfg.get("name") or cfg.get("description"):
+        system += f"\n\nAgent identity:\nName: {cfg.get('name') or AGENT_ID}\nDescription: {cfg.get('description') or ''}".rstrip()
+    instruction = str(cfg.get("instruction") or cfg.get("global_instruction") or "").strip()
+    if instruction:
+        system += "\n\nAgent instruction:\n" + instruction
     context = skill_context()
     if context:
         system += "\n\nThe following skills are active for this agent:\n" + context
@@ -221,10 +325,10 @@ def call_model_gateway_with_tools(run_id: str, text: str) -> tuple[str, dict[str
     tools = model_tools()
     allowlist = selected_tool_names()
     totals = {"promptTokens": 0, "completionTokens": 0, "totalTokens": 0}
-    model_name = MODEL_PROFILE
+    model_name = active_model_profile()
     last_content = ""
     for _ in range(8):
-        payload: dict[str, Any] = {"model": MODEL_PROFILE, "messages": messages, "stream": False}
+        payload: dict[str, Any] = {"model": active_model_profile(), "messages": messages, "stream": False}
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
