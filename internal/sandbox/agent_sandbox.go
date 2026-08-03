@@ -301,7 +301,10 @@ func (m *AgentSandboxManager) statusFromSandbox(ctx context.Context, id string, 
 	if podName == "" {
 		podName = m.findPodName(ctx, id, sb.Status.Selector)
 	}
-	serviceName := firstNonEmpty(sb.Status.Service, serviceName(id))
+	// agent-sandbox controller names the headless Service after the Sandbox
+	// resource itself. Do not apply the direct-kubernetes `aisb-` prefix while
+	// status.serviceFQDN is still being populated during the first Get call.
+	serviceName := firstNonEmpty(sb.Status.Service, id)
 	toolsHost := sb.Status.ServiceFQDN
 	if toolsHost == "" {
 		toolsHost = fmt.Sprintf("%s.%s.svc", serviceName, m.namespace)
