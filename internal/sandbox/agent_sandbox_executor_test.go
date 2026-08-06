@@ -15,12 +15,12 @@ func TestBuildSandboxCRDoesNotProvisionSessionWorker(t *testing.T) {
 	}}}
 
 	cr := manager.buildSandboxCR(model.SandboxEnsureRequest{
-		SandboxID:    "sandbox-1",
-		SessionID:    "session-1",
-		RunID:        "run-1",
-		AgentID:      "agent-1",
-		SnapshotID:   "snapshot-1",
-		Image:        "sandbox:executor-only",
+		SandboxID:     "sandbox-1",
+		SessionID:     "session-1",
+		RunID:         "run-1",
+		AgentID:       "agent-1",
+		SnapshotID:    "snapshot-1",
+		Image:         "sandbox:executor-only",
 		WorkspaceSize: "1Gi",
 	})
 
