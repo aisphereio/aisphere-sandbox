@@ -262,10 +262,10 @@ func (m *AgentSandboxManager) buildSandboxCR(req model.SandboxEnsureRequest) map
 		"imagePullPolicy": req.ImagePullPolicy,
 		"workingDir":      mountPath,
 		"resources":       resources,
-		"ports":           []map[string]interface{}{{"name": "worker", "containerPort": 8088}, {"name": "tools", "containerPort": m.cfg.ToolPort}, {"name": "browser", "containerPort": m.cfg.BrowserPort}, {"name": "web", "containerPort": m.cfg.VNCOrWebPort}},
+		"ports":           []map[string]interface{}{{"name": "tools", "containerPort": m.cfg.ToolPort}, {"name": "browser", "containerPort": m.cfg.BrowserPort}, {"name": "web", "containerPort": m.cfg.VNCOrWebPort}},
 		"volumeMounts":    []map[string]interface{}{{"name": "workspace", "mountPath": mountPath}, {"name": "sandbox-manifest", "mountPath": "/etc/aisphere/sandbox", "readOnly": true}},
 		"env": []map[string]string{
-			{"name": "AISPHERE_SANDBOX_ID", "value": req.SandboxID}, {"name": "AISPHERE_RUNTIME_ID", "value": req.RuntimeID}, {"name": "AISPHERE_SESSION_ID", "value": req.SessionID}, {"name": "AISPHERE_RUN_ID", "value": req.RunID}, {"name": "AISPHERE_AGENT_ID", "value": req.AgentID}, {"name": "AISPHERE_SNAPSHOT_ID", "value": req.SnapshotID}, {"name": "AISPHERE_WORKSPACE", "value": mountPath}, {"name": "AISPHERE_TOOL_PORT", "value": fmt.Sprintf("%d", m.cfg.ToolPort)}, {"name": "AISPHERE_BROWSER_PORT", "value": fmt.Sprintf("%d", m.cfg.BrowserPort)}, {"name": "AISPHERE_SESSION_WORKER_ENABLED", "value": "true"},
+			{"name": "AISPHERE_SANDBOX_ID", "value": req.SandboxID}, {"name": "AISPHERE_RUNTIME_ID", "value": req.RuntimeID}, {"name": "AISPHERE_SESSION_ID", "value": req.SessionID}, {"name": "AISPHERE_RUN_ID", "value": req.RunID}, {"name": "AISPHERE_AGENT_ID", "value": req.AgentID}, {"name": "AISPHERE_SNAPSHOT_ID", "value": req.SnapshotID}, {"name": "AISPHERE_WORKSPACE", "value": mountPath}, {"name": "AISPHERE_TOOL_PORT", "value": fmt.Sprintf("%d", m.cfg.ToolPort)}, {"name": "AISPHERE_BROWSER_PORT", "value": fmt.Sprintf("%d", m.cfg.BrowserPort)},
 		},
 		"securityContext": map[string]interface{}{"allowPrivilegeEscalation": false, "privileged": false, "capabilities": map[string][]string{"drop": {"ALL"}}},
 	}
@@ -328,7 +328,7 @@ func (m *AgentSandboxManager) statusFromClaim(ctx context.Context, id string, cl
 }
 
 func (m *AgentSandboxManager) agentSandboxEndpoints(host string) []model.SandboxEndpoint {
-	return []model.SandboxEndpoint{{Name: "worker", URL: fmt.Sprintf("http://%s:%d", host, 8088), Port: 8088}, {Name: "tools", URL: fmt.Sprintf("http://%s:%d", host, m.cfg.ToolPort), Port: m.cfg.ToolPort}, {Name: "browser", URL: fmt.Sprintf("http://%s:%d", host, m.cfg.BrowserPort), Port: m.cfg.BrowserPort}, {Name: "web", URL: fmt.Sprintf("http://%s:%d", host, m.cfg.VNCOrWebPort), Port: m.cfg.VNCOrWebPort}}
+	return []model.SandboxEndpoint{{Name: "tools", URL: fmt.Sprintf("http://%s:%d", host, m.cfg.ToolPort), Port: m.cfg.ToolPort}, {Name: "browser", URL: fmt.Sprintf("http://%s:%d", host, m.cfg.BrowserPort), Port: m.cfg.BrowserPort}, {Name: "web", URL: fmt.Sprintf("http://%s:%d", host, m.cfg.VNCOrWebPort), Port: m.cfg.VNCOrWebPort}}
 }
 
 func (m *AgentSandboxManager) findPodName(ctx context.Context, id, selector string) string {
