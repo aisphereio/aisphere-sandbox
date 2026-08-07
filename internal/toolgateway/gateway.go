@@ -31,15 +31,85 @@ func (g *HTTPGateway) CallCapability(ctx context.Context, endpoint string, reqBo
 	return g.post(ctx, endpoint, "/v1/capabilities/call", reqBody, "call capability")
 }
 
-// ListTools is the pre-V1 debug proxy. Keep it only while Runtime and existing
-// clients migrate to ListCapabilities.
+// ListTools is a compatibility facade for the pre-V1 manager API. The executor
+// source of truth is already /v1/capabilities; this method only reshapes the
+// response for old Runtime clients that still decode a `tools` array.
 func (g *HTTPGateway) ListTools(ctx context.Context, endpoint string) (map[string]interface{}, error) {
-	return g.get(ctx, endpoint, "/v1/tools", "list legacy tools")
+	out, err := g.ListCapabilities(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	capabilities, _ := out["capabilities"].([]interface{})
+	tools := make([]interface{}, 0, len(capabilities))
+	for _, item := range capabilities {
+		capability, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		legacy := cloneMap(capability)
+		if id, _ := capability["id"].(string); id != "" {
+			legacy["name"] = id
+		}
+		tools = append(tools, legacy)
+	}
+	return map[string]interface{}{
+		"contractVersion": out["contractVersion"],
+		"tools":           tools,
+		"capabilities":    capabilities,
+	}, nil
 }
 
-// Call is the pre-V1 debug proxy. New execution paths use CallCapability.
+// Call is a compatibility facade for the pre-V1 manager API. It translates
+// the historical `tool` field into a low-level executor `capability` and then
+// invokes Capability V1. No fallback to the legacy Pod endpoint is allowed.
 func (g *HTTPGateway) Call(ctx context.Context, endpoint string, reqBody map[string]interface{}) (map[string]interface{}, error) {
-	return g.post(ctx, endpoint, "/v1/tools/call", reqBody, "call legacy tool")
+	body := cloneMap(reqBody)
+	if _, ok := body["capability"]; !ok {
+		body["capability"] = firstNonEmptyString(body["tool"], body["name"])
+	}
+	if _, ok := body["context"]; !ok {
+		body["context"] = legacyInvocationContext(body)
+	}
+	return g.CallCapability(ctx, endpoint, body)
+}
+
+func legacyInvocationContext(body map[string]interface{}) map[string]interface{} {
+	context := map[string]interface{}{}
+	copyIfPresent(context, "runId", body)
+	copyIfPresent(context, "traceId", body)
+	copyIfPresent(context, "attempt", body)
+	if metadata, ok := body["metadata"].(map[string]interface{}); ok {
+		copyIfPresent(context, "sessionId", metadata)
+		copyIfPresent(context, "snapshotId", metadata)
+		copyIfPresent(context, "toolInvocationId", metadata)
+	}
+	return context
+}
+
+func copyIfPresent(dst map[string]interface{}, key string, src map[string]interface{}) {
+	if value, ok := src[key]; ok && value != nil && fmt.Sprint(value) != "" {
+		dst[key] = value
+	}
+}
+
+func firstNonEmptyString(values ...interface{}) string {
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if text := strings.TrimSpace(fmt.Sprint(value)); text != "" {
+			return text
+		}
+	}
+	return ""
+}
+
+func cloneMap(in map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func (g *HTTPGateway) get(ctx context.Context, endpoint, path, operation string) (map[string]interface{}, error) {
