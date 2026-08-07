@@ -47,11 +47,12 @@ RUN if ! getent group ${SANDBOX_USER} >/dev/null; then groupadd --gid ${SANDBOX_
     && chown -R ${SANDBOX_UID}:${SANDBOX_GID} /workspace /opt/aisphere /tmp/aisphere
 
 COPY bin/aisphere-tool-server.py /opt/aisphere/bin/aisphere-tool-server.py
+COPY bin/aisphere-capability-server.py /opt/aisphere/bin/aisphere-capability-server.py
 COPY bin/agentkit-session-worker.py /opt/aisphere/bin/agentkit-session-worker.py
 COPY bin/aisphere-sandbox-entrypoint.sh /usr/local/bin/aisphere-sandbox-entrypoint
 COPY tools/default-tools.json /opt/aisphere/tools/default-tools.json
 COPY skills /opt/aisphere/skills
-RUN chmod +x /opt/aisphere/bin/aisphere-tool-server.py /opt/aisphere/bin/agentkit-session-worker.py /usr/local/bin/aisphere-sandbox-entrypoint \
+RUN chmod +x /opt/aisphere/bin/aisphere-tool-server.py /opt/aisphere/bin/aisphere-capability-server.py /opt/aisphere/bin/agentkit-session-worker.py /usr/local/bin/aisphere-sandbox-entrypoint \
     && chown -R ${SANDBOX_UID}:${SANDBOX_GID} /opt/aisphere /usr/local/bin/aisphere-sandbox-entrypoint
 
 WORKDIR /workspace
