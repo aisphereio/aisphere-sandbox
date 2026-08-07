@@ -31,9 +31,9 @@ if [[ "${start_browser}" == "true" ]]; then
 fi
 
 if [[ "${AISPHERE_SESSION_WORKER_ENABLED}" == "true" ]]; then
-  python3 /opt/aisphere/bin/aisphere-tool-server.py >/tmp/aisphere/tool-server.log 2>&1 &
+  python3 /opt/aisphere/bin/aisphere-capability-server.py >/tmp/aisphere/tool-server.log 2>&1 &
   export AISPHERE_TOOL_SERVER="${AISPHERE_TOOL_SERVER:-http://127.0.0.1:${AISPHERE_TOOL_PORT}}"
   exec python3 /opt/aisphere/bin/agentkit-session-worker.py
 fi
 
-exec python3 /opt/aisphere/bin/aisphere-tool-server.py
+exec python3 /opt/aisphere/bin/aisphere-capability-server.py
