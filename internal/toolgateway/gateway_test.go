@@ -16,7 +16,7 @@ func TestListToolsCompatibilityFacadeUsesCapabilityV1(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"contractVersion": "v1",
 			"capabilities": []map[string]interface{}{{
-				"id": "workspace.read",
+				"id":          "workspace.read",
 				"inputSchema": map[string]interface{}{"type": "object"},
 			}},
 		})
@@ -54,9 +54,9 @@ func TestCallCompatibilityFacadeUsesCapabilityV1(t *testing.T) {
 			t.Fatalf("context = %#v", contextBody)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"ok": true,
+			"ok":         true,
 			"capability": "workspace.read",
-			"result": map[string]interface{}{"content": "ok"},
+			"result":     map[string]interface{}{"content": "ok"},
 		})
 	}))
 	defer server.Close()
